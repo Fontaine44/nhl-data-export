@@ -1,19 +1,23 @@
 import requests
 
+
 BASE_URL = "https://statsapi.web.nhl.com/api/v1/"
 SEASON = 20222023
 
-def get_teams() -> list:
+def get_teams(id:int=None) -> list:
     response = requests.get(f"{BASE_URL}teams")
     data = response.json()
-    return [
-        {
-            "id": team['id'],
-            "name": team['name'],
-            "abb": team['abbreviation']
-        }
-        for team in data['teams']
-    ]
+    if id:
+        return [get_team(team) for team in data['teams'] if team["id"] == id]
+    else:
+        return [get_team(team) for team in data['teams']]
+
+def get_team(team: dict) -> dict:
+    return {
+        "id": team['id'],
+        "name": team['name'],
+        "abb": team['abbreviation']
+    }
 
 
 def get_game_ids(team_id: int) -> list:
