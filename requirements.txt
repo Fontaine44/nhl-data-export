@@ -1,0 +1,4 @@
+azure_storage
+beautifulsoup4
+pandas
+requests
