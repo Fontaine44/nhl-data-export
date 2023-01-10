@@ -1,119 +1,72 @@
+from azure.cosmos import CosmosClient, PartitionKey
 from keyring import get_password
-import json
-from azure.cosmos import CosmosClient, PartitionKey, ContainerProxy, DatabaseProxy
+import os
 
 
-def clear_container(db_client, container_name):
-    try:
-        db_client.delete_container(container_name)
-    finally:
-        db_client.create_container(container_name, partition_key=PartitionKey(path='/id'))
+DATABASE = "nhl-data"
+CONTAINER = "nhl-shots"
+LOG_CONTAINER = "export-log"
+ENDPOINT = "https://nhl-data.documents.azure.com:443/"
 
 
-# def get_database_client():
-#     endpoint = get_password("azure-nhl-data", "URI")
-#     key = get_password("azure-nhl-data", "Primary Key")
-
-#     client = CosmosClient(url=endpoint, credential=key)
-#     return client.get_database_client("nhl-data")
-
-
-# def get_container_client(db_client, container_name):
-#     return db_client.get_container_client(container_name)
-
-
+# Export a dataframe to a Cosmos container
 def export_dataframe(dataframe):
-    endpoint = get_password("azure-nhl-data", "URI")
-    key = get_password("azure-nhl-data", "Primary Key")
-
-    with CosmosClient(url=endpoint, credential=key) as cc:
-        db = cc.get_database_client("nhl-data")
-        container_client = db.get_container_client('nhl-shots')
+    key = get_key()
+    with CosmosClient(url=ENDPOINT, credential=key) as cc:
+        db = cc.get_database_client(DATABASE)
+        container_client = db.get_container_client(CONTAINER)
         for row in dataframe.to_dict(orient="records"):
-            container_client.create_item(row, enable_automatic_id_generation=True)
-
-    
-
+            container_client.create_item(
+                row, enable_automatic_id_generation=True)
 
 
+# Get the Cosmos primary key
+def get_key():
+    key = os.getenv('COSMOS_PK')
+    if key is None:
+        key = get_password("azure-nhl-data", "Primary Key")
+    return key
 
 
+# Clear a container
+def clear_container(name):
+    key = get_key()
+    with CosmosClient(url=ENDPOINT, credential=key) as cc:
+        db = cc.get_database_client(DATABASE)
+        try:
+            db.delete_container(name)
+        finally:
+            db.create_container(name, partition_key=PartitionKey(path='/id'))
 
 
+# Clear the shots container
+def clear_shots():
+    clear_container(CONTAINER)
 
 
+# Store the log file in the database
+def export_log():
+    key = get_key()
+    clear_container(LOG_CONTAINER)
+    with open("trace.log", mode="r") as f:
+        log = {"log": "".join(f.readlines())}
+        with CosmosClient(url=ENDPOINT, credential=key) as cc:
+            db = cc.get_database_client(DATABASE)
+            container_client = db.get_container_client(LOG_CONTAINER)
+            container_client.create_item(
+                log, enable_automatic_id_generation=True)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-def run(dataframe):
-
-
-    drop_data(database, dataframe)
-
-
-
-
-def drop_data(database: DatabaseProxy, dataframe):
-    try:
-        database.delete_container("nhl-shots")
-    finally:
-        database.create_container("nhl-shots", partition_key=PartitionKey(path='/id'))
-        container = database.get_container_client("nhl-shots")
-        
-        for row in dataframe.to_dict(orient="records"):
-            container.create_item(row, enable_automatic_id_generation=True)
-
-
-def query_all_shots(container: ContainerProxy):
-    qu = """SELECT 
-            c.playerId,
-            c.playerName,
-            c.eventTypeId,
-            c.secondaryType,
-            c["time"],
-            c.period,
-            c.x,
-            c.y,
-            c.teamId,
-            c.team,
-            c.gameId,
-            c.strength,
-            c.distance
-            FROM c
-            WHERE c.strength=@strength
-            AND c.playerName=@playerName
-            """
-
-    params = [
-        {
-            "name":"@strength",
-            "value":"PP"
-        },
-        {
-            "name":"@playerName",
-            "value":"Cole Caufield"
-        }
-    ]
-
-    items = container.query_items(query=qu, parameters=params, enable_cross_partition_query=True)
-    it = list(items)
-
-if __name__ == "__main__":
-    endpoint = get_password("azure-nhl-data", "URI")
-    key = get_password("azure-nhl-data", "Primary Key")
-
-    client = CosmosClient(url=endpoint, credential=key)
-    database = client.get_database_client("nhl-data")
-    drop_data(database)
+# Get the games present in the db for a team
+def get_exported_games(team_id):
+    key = get_key()
+    with CosmosClient(url=ENDPOINT, credential=key) as cc:
+        db = cc.get_database_client(DATABASE)
+        container_client = db.get_container_client(CONTAINER)
+        query = "SELECT DISTINCT VALUE c.gameId FROM c WHERE c.teamId = @teamId"
+        parameters = [{
+            "name": "@teamId",
+            "value": team_id
+        }]
+        return list(container_client.query_items(
+            query=query, parameters=parameters, enable_cross_partition_query=True))

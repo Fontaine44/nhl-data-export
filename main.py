@@ -1,93 +1,94 @@
-from nhl_api import get_game_ids, get_api_shots, get_teams
-from nhl_scraping import get_pbp_shots
-
-from shots import api_to_dataframe, pbp_to_dataframe, dataframe_to_json, merge_dataframes, add_side
-from export import clear_container, export_dataframe
-import sys
-import time
-import logging
 import datetime
+import logging
+import sys
+import argparse
+import time
+import nhl_api
+import shots
+import export
+
 
 YEAR = 20222023
 
+
+# Entry point
 def main(argv):
+    exit_code = 0
     logger = set_logger()
-    log_time(logger)
-
-    if len(argv) == 1:
-        teams = get_teams(id=int(argv[0]))
-    else:
-        teams = get_teams()
-
-    print(teams)
+    log_start_time(logger)
     start_time = time.time()
-    
-    
-    
-    return
-    logger.info()
-    start_time = time.time()
-    main(start_time)
-    print("--- %s seconds ---" % (time.time() - start_time))
-    
+    try:
+        namespace = parse_args(argv)
+        clear = namespace.clear
+        team_id = namespace.id
+
+        teams = nhl_api.get_teams(team_id)
+
+        if clear:
+            export.clear_shots()
+            logger.info("Container nhl_shots cleared")
+
+        for team in teams:
+            team_start = time.time()
+            logger.info(f"-> Retrieving shots for the {team['name']}")
+
+            game_ids = nhl_api.get_game_ids(team['id'], not clear)
+            logger.info(f"Number of games to update: {len(game_ids)}")
+
+            if len(game_ids) > 0:
+                df = shots.get_team_shots(game_ids, team)
+                logger.info(f"Number of shots: {len(df)}")
+                export.export_dataframe(df)
+
+            team_time = int(time.time() - team_start)
+            logger.info(f"Exported in {team_time} seconds")
+
+    except:
+        logger.exception("An error has occured.")
+        exit_code = 1
+
+    log_exit_time(logger, start_time)
+    export.export_log()
+    logger.info(f"Log file exported")
+    sys.exit(exit_code)
 
 
-    # teams = get_teams()
-    # endpoint = get_password("azure-nhl-data", "URI")
-    # key = get_password("azure-nhl-data", "Primary Key")
-
-    # with CosmosClient(url=endpoint, credential=key) as cc:
-    #     db = cc.get_database_client("nhl-data")
-    #     clear_container(db, 'nhl-shots')
-
-    # for team in teams:
-    #     print("exporting: "+team['name'])
-    #     df = export_team_shots(team)
-    #     # export_dataframe(df)
-    #     dataframe_to_json(df)
-    #     tim = time.time() - start_time
-    #     start_time += tim
-    #     print("exported: "+team['name']+" in "+("%s seconds" % tim))
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        prog='NHL SHOTS EXPORTER',
+        description='Export NHL shots to a COSMOS DB')
+    parser.add_argument('-i', '--id', type=int)
+    parser.add_argument('-c', '--clear', action='store_true')
+    return parser.parse_args(argv)
 
 
-def log_time(logger):
+def log_start_time(logger):
     date = str(datetime.date.today())
     current_time = str(datetime.datetime.now().strftime("%H:%M:%S"))
     logger.info("----------------------------------------")
     logger.info(f"DATE: {date}")
-    logger.info(f"CURRENT TIME: {current_time}")
+    logger.info(f"TIME: {current_time}")
     logger.info("----------------------------------------")
 
+
+def log_exit_time(logger, start_time):
+    time_elapsed = time.time() - start_time
+    minutes = int(time_elapsed // 60)
+    seconds = int(time_elapsed % 60)
+    logger.info("----------------------------------------")
+    logger.info(f"TOTAL ELAPSED TIME: {minutes} min | {seconds} sec")
+    logger.info("----------------------------------------")
+
+
 def set_logger():
-    # Create a custom logger
-    logger = logging.getLogger()
+    logger = logging.getLogger('trace')
     logger.setLevel(logging.INFO)
-    # Create handlers
     c_handler = logging.StreamHandler()
-    f_handler = logging.FileHandler('logger.log')
-    # Add handlers to the logger
+    f_handler = logging.FileHandler('trace.log', mode='w')
     logger.addHandler(c_handler)
     logger.addHandler(f_handler)
     return logger
-    
 
-def export_team_shots(team):
-    game_ids = get_game_ids(team['id'])
-
-    api_shots = get_api_shots(game_ids, team['id'])
-    api_shots_df = api_to_dataframe(api_shots)
-
-    pbp_shots = get_pbp_shots(game_ids, team['id'], team['abb'])
-    pbp_shots_df = pbp_to_dataframe(pbp_shots)
-
-    merged_df = merge_dataframes(api_shots_df, pbp_shots_df)
-
-    merged_df["crossRed"] = add_side(merged_df)
-
-    print("total shots: ", len(merged_df))
-    
-    return merged_df
 
 if __name__ == "__main__":
-    main(sys.argv[2:])
-
+    main(sys.argv[1:])
