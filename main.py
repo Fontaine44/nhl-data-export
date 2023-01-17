@@ -1,11 +1,10 @@
-import datetime
-import logging
-import sys
-import argparse
 import time
-import nhl_api
-import shots
+import argparse
+import sys
+import logging
+import datetime
 import export
+import moneypuck
 
 
 YEAR = 20222023
@@ -22,26 +21,21 @@ def main(argv):
         clear = namespace.clear
         team_id = namespace.id
 
-        teams = nhl_api.get_teams(team_id)
-
         if clear:
             export.clear_shots()
             logger.info("Container nhl_shots cleared")
-
-        for team in teams:
-            team_start = time.time()
-            logger.info(f"-> Retrieving shots for the {team['name']}")
-
-            game_ids = nhl_api.get_game_ids(team['id'], not clear)
-            logger.info(f"Number of games to update: {len(game_ids)}")
-
-            if len(game_ids) > 0:
-                df = shots.get_team_shots(game_ids, team)
-                logger.info(f"Number of shots: {len(df)}")
-                export.export_dataframe(df)
-
-            team_time = int(time.time() - team_start)
-            logger.info(f"Exported in {team_time} seconds")
+            df = moneypuck.get_moneypuck_shots()
+            logger.info("Retrieved data from moneypuck")
+            export.export_dataframe(df)
+            logger.info("Exporting done sucessfully")
+        else:   # Append
+            last_shot_id = export.get_last_shot_id()
+            df = moneypuck.get_moneypuck_shots()
+            logger.info("Retrieved data from moneypuck")
+            df = moneypuck.get_new_shots(df, last_shot_id)
+            logger.info("Removed old shots")
+            export.export_dataframe(df)
+            logger.info(f"Sucessfully exported {len(df)} shots")
 
     except:
         logger.exception("An error has occured.")
