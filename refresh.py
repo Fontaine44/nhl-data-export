@@ -2,7 +2,7 @@ import requests
 
 
 def refresh():
-    requests.get("https://fontaine.onrender.com")
+    requests.get("https://fontaine.onrender.com/start")
 
 
 if __name__ == "__main__":
