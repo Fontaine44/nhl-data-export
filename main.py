@@ -13,6 +13,7 @@ YEAR = 20222023
 # Entry point
 def main(argv):
     exit_code = 0
+    success = True
     logger = set_logger()
     log_start_time(logger)
     start_time = time.time()
@@ -40,9 +41,10 @@ def main(argv):
     except:
         logger.exception("An error has occured.")
         exit_code = 1
+        succes = False
 
     log_exit_time(logger, start_time)
-    export.export_log()
+    export.export_log(success)
     logger.info(f"Log file exported")
     sys.exit(exit_code)
 

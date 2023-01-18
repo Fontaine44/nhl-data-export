@@ -2,6 +2,7 @@ from azure.cosmos import CosmosClient, PartitionKey
 from keyring import get_password
 import os
 import json
+import datetime
 
 
 DATABASE = "nhl-data"
@@ -46,11 +47,17 @@ def clear_shots():
 
 
 # Store the log file in the database
-def export_log():
+def export_log(success):
     key = get_key()
-    clear_container(LOG_CONTAINER)
+    date = str(datetime.date.today())
+    current_time = str(datetime.datetime.now().strftime("%H:%M:%S"))
     with open("trace.log", mode="r") as f:
-        log = {"log": "".join(f.readlines())}
+        log = {
+            "log": "".join(f.readlines()),
+            "date": date,
+            "time": current_time,
+            "success": success
+        }
         with CosmosClient(url=ENDPOINT, credential=key) as cc:
             db = cc.get_database_client(DATABASE)
             container_client = db.get_container_client(LOG_CONTAINER)
