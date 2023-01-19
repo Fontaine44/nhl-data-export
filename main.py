@@ -25,23 +25,21 @@ def main(argv):
         if clear:
             export.clear_shots()
             logger.info("Container nhl_shots cleared")
-            df = moneypuck.get_moneypuck_shots()
-            logger.info("Retrieved data from moneypuck")
-            export.export_dataframe(df)
-            logger.info("Exporting done sucessfully")
-        else:   # Append
+        df = moneypuck.get_moneypuck_shots()
+        logger.info("Retrieved data from moneypuck")
+        if not clear:
             last_shot_id = export.get_last_shot_id()
-            df = moneypuck.get_moneypuck_shots()
-            logger.info("Retrieved data from moneypuck")
             df = moneypuck.get_new_shots(df, last_shot_id)
             logger.info("Removed old shots")
-            export.export_dataframe(df)
-            logger.info(f"Sucessfully exported {len(df)} shots")
+        df = moneypuck.add_strength(df)
+        logger.info("Added strength")
+        export.export_dataframe(df)
+        logger.info(f"Sucessfully exported {len(df)} shots")
 
     except:
         logger.exception("An error has occured.")
         exit_code = 1
-        succes = False
+        success = False
 
     log_exit_time(logger, start_time)
     export.export_log(success)
