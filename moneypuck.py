@@ -24,3 +24,28 @@ def get_moneypuck_shots():
 # Remove old shots from df
 def get_new_shots(df, last_shot_id):
     return df.query(f"shotId > {last_shot_id}")
+
+
+# Add strength value
+def add_strength(df):
+    df["strength"] = df.apply(lambda row: get_strength(row), axis=1)
+    return df
+
+
+# Decide strength
+def get_strength(shot):
+    home_players = shot["homeSkatersOnIce"] - shot["homeEmptyNet"]
+    away_players = shot["awaySkatersOnIce"] - shot["awayEmptyNet"]
+
+    is_home = bool(shot["isHomeTeam"])
+
+    if home_players == away_players:
+        return "EVEN"
+    elif is_home and home_players > away_players:
+        return "PP"
+    elif is_home and home_players < away_players:
+        return "PK"
+    elif not is_home and home_players < away_players:
+        return "PP"
+    elif not is_home and home_players > away_players:
+        return "PK"
