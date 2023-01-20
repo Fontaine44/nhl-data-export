@@ -3,6 +3,7 @@ import argparse
 import sys
 import logging
 import datetime
+import numpy
 import export
 import moneypuck
 
@@ -33,6 +34,8 @@ def main(argv):
             logger.info("Removed old shots")
         df = moneypuck.add_strength(df)
         logger.info("Added strength")
+        df.replace(to_replace=[numpy.nan], value=None, inplace=True)
+        logger.info("Data is ready, exporting to database...")
         export.export_dataframe(df)
         logger.info(f"Sucessfully exported {len(df)} shots")
 
@@ -59,19 +62,23 @@ def parse_args(argv):
 def log_start_time(logger):
     date = str(datetime.date.today())
     current_time = str(datetime.datetime.now().strftime("%H:%M:%S"))
-    logger.info("----------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------------------------")
     logger.info(f"DATE: {date}")
     logger.info(f"TIME: {current_time}")
-    logger.info("----------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------------------------")
 
 
 def log_exit_time(logger, start_time):
     time_elapsed = time.time() - start_time
     minutes = int(time_elapsed // 60)
     seconds = int(time_elapsed % 60)
-    logger.info("----------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------------------------")
     logger.info(f"TOTAL ELAPSED TIME: {minutes} min | {seconds} sec")
-    logger.info("----------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------------------------")
 
 
 def set_logger():

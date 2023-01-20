@@ -1,7 +1,6 @@
 from azure.cosmos import CosmosClient, PartitionKey
 from keyring import get_password
 import os
-import json
 import datetime
 
 
@@ -17,7 +16,7 @@ def export_dataframe(dataframe):
     with CosmosClient(url=ENDPOINT, credential=key, request_timeout=3000) as cc:
         db = cc.get_database_client(DATABASE)
         container_client = db.get_container_client(CONTAINER)
-        for row in json.loads(dataframe.to_json(orient="records")):
+        for row in dataframe.to_dict(orient="records"):
             container_client.create_item(
                 row, enable_automatic_id_generation=True)
 
