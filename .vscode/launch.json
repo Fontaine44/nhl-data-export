@@ -8,7 +8,9 @@
             "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": []
+            "args": [
+                "-c"
+            ]
         }
     ]
 }
