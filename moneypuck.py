@@ -49,3 +49,23 @@ def get_strength(shot):
         return "PP"
     elif not is_home and home_players > away_players:
         return "PK"
+
+
+# Add zone value
+def add_zone(df):
+    df["zone"] = df.apply(lambda row: get_zone(row), axis=1)
+    return df
+
+
+# Decide zone
+def get_zone(shot):
+    if shot["location"] == "Neu. Zone":
+        return "NEU"
+
+    is_home = bool(shot["isHomeTeam"])
+    home_zone = shot["location"] == "HOMEZONE"
+
+    if is_home:
+        return "DEF" if home_zone else "OFF"
+    else:
+        return "OFF" if home_zone else "DEF"

@@ -26,16 +26,24 @@ def main(argv):
         if clear:
             export.clear_shots()
             logger.info("Container nhl_shots cleared")
+
         df = moneypuck.get_moneypuck_shots()
         logger.info("Retrieved data from moneypuck")
+
         if not clear:
             last_shot_id = export.get_last_shot_id()
             df = moneypuck.get_new_shots(df, last_shot_id)
             logger.info("Removed old shots")
+
         df = moneypuck.add_strength(df)
         logger.info("Added strength")
+
+        df = moneypuck.add_zone(df)
+        logger.info("Added zone")
+
         df.replace(to_replace=[numpy.nan], value=None, inplace=True)
         logger.info("Data is ready, exporting to database...")
+
         export.export_dataframe(df)
         logger.info(f"Sucessfully exported {len(df)} shots")
 
