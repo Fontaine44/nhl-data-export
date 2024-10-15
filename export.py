@@ -1,94 +1,79 @@
-from azure.cosmos import CosmosClient, PartitionKey
-from keyring import get_password
 import os
 import datetime
+import oracledb
 
 
-DATABASE = "nhl-data"
-CONTAINER = "nhl-shots"
-LOG_CONTAINER = "export-log"
-ENDPOINT = "https://nhl-data.documents.azure.com:443/"
+ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD")
+CONNECTION_STR='''(description= (retry_count=1)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.ca-montreal-1.oraclecloud.com))(connect_data=(service_name=g8776c1047b3446_fkmjnxbscms692ba_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'''
 
 
-# Export a dataframe to a Cosmos container
-def export_dataframe(dataframe):
-    key = get_key()
-    with CosmosClient(url=ENDPOINT, credential=key, request_timeout=3000) as cc:
-        db = cc.get_database_client(DATABASE)
-        container_client = db.get_container_client(CONTAINER)
-        for row in dataframe.to_dict(orient="records"):
-            container_client.create_item(
-                row, enable_automatic_id_generation=True)
+# Export a dataframe to an Oracle database
+def export_dataframe(df):
+    with oracledb.connect(
+        user="NHL_API",
+        password=ORACLE_PASSWORD,
+        dsn=CONNECTION_STR) as conn:
+    
+        cursor = conn.cursor()
+        insert_query = 'INSERT INTO Shots VALUES(:1'
+        df_list = df.values.tolist()
 
+        if len(df_list) == 0:
+            return
 
-# Get the Cosmos primary key
-def get_key():
-    key = os.getenv('COSMOS_PK')
-    if key is None:
-        key = get_password("azure-nhl-data", "Primary Key")
-    return key
+        for i in range(2, len(df_list[0])+1):
+            insert_query += f',:{i}'
+        insert_query += ')'
 
-
-# Clear a container
-def clear_container(name):
-    key = get_key()
-    with CosmosClient(url=ENDPOINT, credential=key) as cc:
-        db = cc.get_database_client(DATABASE)
-        try:
-            db.delete_container(name)
-        finally:
-            db.create_container(name, partition_key=PartitionKey(path='/id'))
-
-
-# Clear the shots container
-def clear_shots():
-    clear_container(CONTAINER)
+        for i in range(df.shape[0]):
+            cursor.execute(insert_query, df_list[i])
+        
+        conn.commit()
 
 
 # Store the log file in the database
 def export_log(success):
-    key = get_key()
-    date = str(datetime.date.today())
-    current_time = str(datetime.datetime.now().strftime("%H:%M:%S"))
-    with open("trace.log", mode="r") as f:
-        log = {
-            "log": "".join(f.readlines()),
-            "date": date,
-            "time": current_time,
-            "success": success
-        }
-        with CosmosClient(url=ENDPOINT, credential=key) as cc:
-            db = cc.get_database_client(DATABASE)
-            container_client = db.get_container_client(LOG_CONTAINER)
-            container_client.create_item(
-                log, enable_automatic_id_generation=True)
+    with oracledb.connect(
+        user="NHL_API",
+        password=ORACLE_PASSWORD,
+        dsn=CONNECTION_STR) as conn:
+            
+        date = datetime.datetime.today()
+
+        with open("trace.log", "r") as f:
+            log = "".join(f.readlines())
+
+        cursor = conn.cursor()
+        query = 'INSERT INTO EXPORT_LOGS VALUES(:1, :2, :3)'
+        cursor.execute(query, (log, date, success))
+
+        conn.commit()
 
 
 # Get the games present in the db for a team
-def get_exported_games(team_id):
-    key = get_key()
-    with CosmosClient(url=ENDPOINT, credential=key) as cc:
-        db = cc.get_database_client(DATABASE)
-        container_client = db.get_container_client(CONTAINER)
-        query = "SELECT DISTINCT VALUE c.gameId FROM c WHERE c.teamId = @teamId"
-        parameters = [{
-            "name": "@teamId",
-            "value": team_id
-        }]
-        return list(container_client.query_items(
-            query=query, parameters=parameters, enable_cross_partition_query=True))
+def get_exported_games(team_code):
+    with oracledb.connect(
+        user="NHL_API",
+        password=ORACLE_PASSWORD,
+        dsn=CONNECTION_STR) as conn:
+    
+        cursor = conn.cursor()
+        query = 'SELECT DISTINCT game_id FROM NHL_API.Shots WHERE teamCode = :1'
+        cursor.execute(query, (team_code,))
+
+        return cursor.fetchall()
 
 
 # Get the id of the last shot in the database
 def get_last_shot_id():
-    key = get_key()
-    with CosmosClient(url=ENDPOINT, credential=key) as cc:
-        db = cc.get_database_client(DATABASE)
-        container_client = db.get_container_client(CONTAINER)
-        query = "SELECT value MAX(c.shotId) FROM c"
-        items_iterator = container_client.query_items(
-            query=query, enable_cross_partition_query=True)
-        try:
-            return list(items_iterator)[0]
-        except:
-            return -1
+    with oracledb.connect(
+        user="NHL_API",
+        password=ORACLE_PASSWORD,
+        dsn=CONNECTION_STR) as conn:
+    
+        cursor = conn.cursor()
+        query = 'SELECT MAX(ShotId) AS max_shot_id FROM NHL_API.SHOTS'
+
+        cursor.execute(query)
+        
+        return cursor.fetchone()[0]

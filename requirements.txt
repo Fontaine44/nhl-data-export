@@ -1,6 +1,6 @@
-azure_cosmos
 beautifulsoup4
 pandas
 requests
 keyring
 numpy
+oracledb

@@ -3,7 +3,7 @@ import requests
 import zipfile
 import io
 
-YEAR = 2022
+YEAR = 2024
 BASE_URL = f"https://peter-tanner.com/moneypuck/downloads/shots_{YEAR}.zip"
 
 
@@ -13,16 +13,13 @@ def get_moneypuck_shots():
     z = zipfile.ZipFile(io.BytesIO(r.content))
     z.extractall()
     df = pd.read_csv(f"shots_{YEAR}.csv")
-
-    # Add shotID column
-    df = df.drop(columns=["shotID", "id"], axis=1)
-    df["shotId"] = range(1, len(df) + 1)
-
     return df
 
 
 # Remove old shots from df
 def get_new_shots(df, last_shot_id):
+    if last_shot_id is None:
+        return df
     return df.query(f"shotId > {last_shot_id}")
 
 
